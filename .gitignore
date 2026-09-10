@@ -1,2 +1,12 @@
 *.log
 *.out
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# macOS metadata
+.DS_Store
+.DS_Store?
+._*
