@@ -1,6 +1,12 @@
 *.log
 *.out
 
+# Local secrets/configuration
+.env
+.streamlit/secrets.toml
+settings.local.py
+.venue_profile.json
+
 # Python cache
 __pycache__/
 *.py[cod]
