@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import apis
 
@@ -287,16 +288,51 @@ def main() -> None:
         html, body, [class*="css"] { font-family: var(--font-body); }
         .stApp { background: var(--background); color: var(--text1); }
         [data-testid="stAppViewContainer"] { background: var(--background); }
-        [data-testid="stHeader"] { background: rgba(250,249,245,.90); border-bottom: 1px solid var(--border); }
-        [data-testid="stToolbar"] { opacity: .55; }
+        [data-testid="stHeader"] {
+          background: rgba(250,249,245,.96);
+          border-bottom: 1px solid var(--border);
+          height: 60px;
+        }
+        [data-testid="stToolbar"] { opacity: 1; }
+        [data-testid="stHeader"] .stAppToolbar { justify-content: flex-end; }
+        [data-testid="stDecoration"] { display: none; }
+        .app-topline {
+          position: fixed;
+          top: 0;
+          left: var(--app-topline-left, 0px);
+          right: 8.5rem;
+          height: 60px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 1.5rem;
+          pointer-events: none;
+          z-index: 1000000;
+        }
+        .app-topline .brandmark {
+          font-family: var(--font-display);
+          font-size: 1.25rem;
+          font-weight: 500;
+          letter-spacing: -.02em;
+          color: var(--text1);
+        }
+        .app-topline .brandmark span { color: var(--accent); margin-right: .45rem; }
+        .app-topline .topmeta {
+          font: 500 .68rem/1.2 var(--font-mono);
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          color: var(--text4);
+        }
+        @media (max-width: 760px) {
+          .app-topline { right: 5.5rem; padding: 0 1rem; }
+          .app-topline .topmeta { display: none; }
+        }
         [data-testid="stSidebar"] { background: var(--surface1); border-right: 1px solid var(--border); }
         [data-testid="stSidebar"] > div:first-child { padding: 2rem 1.35rem; }
         body:has(.login-intro) [data-testid="stSidebar"] { display: none; }
-        body:has(.login-intro) [data-testid="stMainBlockContainer"] { max-width:720px; padding-top:4rem; padding-bottom:2rem; }
-        body:has(.login-intro) .page-shell { padding:0; }
-        body:has(.login-intro) .topline { margin-bottom:0; }
+        body:has(.login-intro) [data-testid="stMainBlockContainer"] { max-width:720px; padding-top:5.5rem; padding-bottom:2rem; }
         body:has(.login-intro) .evidence-note { margin-top:1rem; }
-        .section-intro.login-intro { border-top:0; padding-top:.5rem; margin:1.5rem 0 1.25rem; }
+        .section-intro.login-intro { border-top:0; padding-top:.5rem; margin:0 0 1.25rem; }
         [data-testid="stForm"] { background:var(--surface1); border:1px solid var(--border); border-radius:16px; padding:24px; }
         [data-testid="stForm"] [data-testid="stTextInputRootElement"] { background:var(--background); border:1px solid var(--border); border-radius:12px; }
         [data-testid="stForm"] input { background:transparent; color:var(--text1); }
@@ -310,10 +346,8 @@ def main() -> None:
         [data-testid="stSidebar"] [data-testid="stButton"] p { color: inherit !important; }
         [data-testid="stSidebar"] [data-testid="stTextInput"] input { background: var(--background); }
         .page-shell { max-width: 1040px; margin: 0 auto; padding: 1.8rem 2.5rem 2.5rem; }
-        .topline { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding:0 0 .85rem; margin-bottom:2.6rem; }
         .brandmark { font-family:var(--font-display); font-size:1.25rem; color:var(--text1); letter-spacing:-.02em; }
         .brandmark span { color:var(--accent); }
-        .topmeta { font:500 .68rem/1.2 var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text4); }
         .hero { max-width: 760px; margin-bottom: 2.1rem; }
         .eyebrow, .section-kicker, p.section-kicker { font:500 .68rem/1.35 var(--font-mono); text-transform:uppercase; letter-spacing:.1em; color:var(--accent) !important; margin:0 0 .9rem; }
         .section-intro [data-testid="stHeaderActionElements"] { display:none; }
@@ -338,13 +372,33 @@ def main() -> None:
         [data-testid="stMetricValue"] { font-family:var(--font-mono); }
         .evidence-note { margin-top:3rem; padding:1.1rem 1.25rem; border:1px solid #E8B39D; border-radius:16px; background:var(--accent-subtle); color:var(--text2); font:400 .84rem/1.55 var(--font-body); }
         .evidence-note strong { font:500 .68rem var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:#874634; display:block; margin-bottom:.35rem; }
-        @media (max-width: 760px) { .page-shell { padding:1.3rem 1rem 3rem; } .topline { margin-bottom:2rem; } .topmeta { display:none; } }
+        @media (max-width: 760px) { .page-shell { padding:1.3rem 1rem 3rem; } }
         </style>
-        <div class="page-shell">
-          <div class="topline"><div class="brandmark"><span>●</span> 深大场馆预约</div><div class="topmeta">SHENZHEN UNIVERSITY · RESERVATIONS</div></div>
-        </div>
+        <div id="app-topline" class="app-topline"><div class="brandmark"><span>●</span>深大场馆预约</div><div class="topmeta">SHENZHEN UNIVERSITY · RESERVATIONS</div></div>
         """,
         unsafe_allow_html=True,
+    )
+    components.html(
+        """
+        <script>
+        (function() {
+          const doc = window.parent.document;
+          const root = doc.documentElement;
+          const place = () => {
+            const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+            const box = sidebar && sidebar.getBoundingClientRect();
+            const visible = box && box.width > 40 && box.x >= -1;
+            root.style.setProperty('--app-topline-left', visible ? Math.round(box.width) + 'px' : '0px');
+          };
+          place();
+          new MutationObserver(place).observe(doc.body, {attributes: true, subtree: true, attributeFilter: ['style', 'class']});
+          window.parent.addEventListener('resize', place);
+          setTimeout(place, 50);
+          setTimeout(place, 250);
+        })();
+        </script>
+        """,
+        height=0,
     )
 
     active_job = st.session_state.get("booking_job_id")
