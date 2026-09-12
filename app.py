@@ -5,6 +5,8 @@ Cookies are entered at runtime and are never persisted by this module.
 """
 from __future__ import annotations
 
+import os
+import sys
 import re
 import time
 import json
@@ -19,8 +21,22 @@ import streamlit as st
 import apis
 
 
-LOG_PATH = Path(__file__).with_name("OPERATION_LOG.md")
-PROFILE_PATH = Path(__file__).with_name(".venue_profile.json")
+def app_home() -> Path:
+    """Writable directory next to the packaged app, or the source tree."""
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable).resolve()
+        # macOS .app: Contents/MacOS/<binary> -> keep files next to the .app
+        if sys.platform == "darwin":
+            for parent in executable.parents:
+                if parent.suffix == ".app":
+                    return parent.parent
+        return executable.parent
+    return Path(__file__).resolve().parent
+
+
+HOME = app_home()
+LOG_PATH = HOME / "OPERATION_LOG.md"
+PROFILE_PATH = HOME / ".venue_profile.json"
 @st.cache_resource
 def job_registry():
     """Retain background jobs across Streamlit script reruns."""
@@ -84,6 +100,37 @@ def rows_from(ret: Any) -> list[Any]:
                 if isinstance(value, list):
                     return value
     return []
+
+
+def parse_time_list(ret: Any) -> tuple[list[Any] | None, str | None]:
+    """Return (rows, error). rows is None when the query itself failed."""
+    if ret is None:
+        return None, "查询失败，请检查网络或 Cookie 是否过期后重试。"
+    rows = rows_from(ret)
+    if not rows and isinstance(ret, dict):
+        code = ret.get("code")
+        if code not in {None, 0, "0"}:
+            msg = str(ret.get("msg") or "查询失败").strip()
+            return None, f"查询失败：{msg}"
+    return rows, None
+
+
+def slot_options(times: list[Any]) -> tuple[dict[str, str], list[str]]:
+    """Split time rows into bookable labels and unavailable captions."""
+    available: dict[str, str] = {}
+    unavailable: list[str] = []
+    for row in times:
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("CODE", row.get("NAME", "")))
+        if not re.fullmatch(r"\d{2}:\d{2}-\d{2}:\d{2}", code):
+            continue
+        if row.get("disabled", False):
+            reason = str(row.get("text") or row.get("STATE_EXPLAIN") or "不可预约")
+            unavailable.append(f"{code}（{reason}）")
+        else:
+            available[f"{code}（可预约）"] = code
+    return available, unavailable
 
 
 def is_success(response: Any) -> bool:
@@ -209,6 +256,7 @@ def render_booking_job(job_id: str) -> None:
                 job["detail"] = "正在停止预约，请等待当前请求结束…"
             st.warning("已请求停止，当前网络请求结束后停止轮询")
     elif snapshot["status"] == "success":
+        st.success(snapshot["detail"] or "预约成功")
         # Fragment and full-page reruns must not repeat the success toast.
         should_notify = False
         with JOBS_LOCK:
@@ -228,86 +276,137 @@ def main() -> None:
         page_title="深大场馆预约",
         page_icon="🏟️",
         layout="wide",
-        initial_sidebar_state="expanded" if st.session_state.get("connected", False) else "collapsed",
+        initial_sidebar_state="expanded",
     )
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.cn/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
+        @import url('https://fonts.googleapis.cn/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap');
 
         :root {
-          --background: #FAF9F5; --surface1: #F5F4ED; --surface2: #F0EEE6;
-          --surface3: #E8E6DC; --border: #DEDCD1; --text1: #1A1918;
+          --background: #FAF9F5; --surface1: #F0EEE6; --surface2: #E8E6DC;
+          --surface3: #E3DACC; --border: #D1CFC5; --text1: #141413;
           --text2: #3D3D3A; --text3: #5E5D59; --text4: #87867F;
-          --accent: #D97757; --accent-subtle: #F8E7DF; --success: #567D62;
+          --accent: #D97757; --accent-subtle: #F0EEE6; --success: #788C5D;
           --font-display: 'Newsreader', Georgia, serif;
           --font-body: 'Instrument Sans', system-ui, sans-serif;
           --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
         }
         @media (prefers-color-scheme: dark) {
-          :root { --background:#141413; --surface1:#1A1918; --surface2:#3D3D3A; --surface3:#5E5D59; --border:#3D3D3A; --text1:#FAF9F5; --text2:#E8E6DC; --text3:#B0AEA5; --text4:#87867F; --accent:#DE9274; --accent-subtle:#1A1918; --success:#6D9779; }
+          :root { --background:#141413; --surface1:#1A1918; --surface2:#3D3D3A; --surface3:#5E5D59; --border:#3D3D3A; --text1:#FAF9F5; --text2:#E8E6DC; --text3:#B0AEA5; --text4:#87867F; --accent:#DE9274; --accent-subtle:#1A1918; --success:#788C5D; }
           .stApp, [data-testid="stAppViewContainer"] { background:var(--background); color:var(--text1); }
-          [data-testid="stHeader"] { background:rgba(20,20,19,.9); }
+          [data-testid="stHeader"] { background:rgba(20,20,19,.92); }
           [data-testid="stSidebar"] { background:var(--surface1); }
-          .evidence-note { border-color:#874634; background:#24120E; }
-          .evidence-note strong { color:#DE9274; }
+          .evidence-note { border-color:var(--border); background:var(--surface1); }
+          .evidence-note strong { color:var(--text4); }
         }
         html, body, [class*="css"] { font-family: var(--font-body); }
         .stApp { background: var(--background); color: var(--text1); }
         [data-testid="stAppViewContainer"] { background: var(--background); }
-        [data-testid="stHeader"] { background: rgba(250,249,245,.90); border-bottom: 1px solid var(--border); }
-        [data-testid="stToolbar"] { opacity: .55; }
+        [data-testid="stHeader"] {
+          background: rgba(250,249,245,.96);
+          border-bottom: 1px solid var(--border);
+          height: 68px;
+        }
+        [data-testid="stDecoration"],
+        [data-testid="stAppDeployButton"],
+        [data-testid="stMainMenu"],
+        [data-testid="stToolbarActions"] { display: none !important; }
+        [data-testid="stExpandSidebarButton"] { display: flex !important; }
+        .app-topline {
+          position: fixed;
+          top: 0;
+          left: 3.25rem;
+          right: 0;
+          height: 68px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 2rem 0 .55rem;
+          pointer-events: none;
+          z-index: 999990;
+        }
+        body:has(.login-intro) .app-topline {
+          left: 0;
+          padding-left: 2rem;
+        }
+        [data-testid="stAppViewContainer"]:has([data-testid="stSidebar"][aria-expanded="true"]) .app-topline {
+          left: 21rem;
+          padding-left: 1.5rem;
+        }
+        .app-topline .brandmark {
+          font-family: var(--font-body);
+          font-size: 1.05rem;
+          font-weight: 600;
+          letter-spacing: -.01em;
+          color: var(--text1);
+          white-space: nowrap;
+        }
+        .app-topline .brandmark span { color: var(--text1); margin-right: .55rem; font-size: .7rem; }
+        .app-topline .topmeta {
+          font: 400 .72rem/1.2 var(--font-display);
+          letter-spacing: .02em;
+          text-transform: none;
+          color: var(--text3);
+          white-space: nowrap;
+          margin-left: auto;
+        }
+        @media (max-width: 760px) {
+          .app-topline { padding-right: 1rem; }
+          body:has(.login-intro) .app-topline { padding-left: 1rem; }
+          .app-topline .topmeta { display: none; }
+        }
         [data-testid="stSidebar"] { background: var(--surface1); border-right: 1px solid var(--border); }
         [data-testid="stSidebar"] > div:first-child { padding: 2rem 1.35rem; }
         body:has(.login-intro) [data-testid="stSidebar"] { display: none; }
-        body:has(.login-intro) [data-testid="stMainBlockContainer"] { max-width:720px; padding-top:4rem; padding-bottom:2rem; }
-        body:has(.login-intro) .page-shell { padding:0; }
-        body:has(.login-intro) .topline { margin-bottom:0; }
-        body:has(.login-intro) .evidence-note { margin-top:1rem; }
-        .section-intro.login-intro { border-top:0; padding-top:.5rem; margin:1.5rem 0 1.25rem; }
-        [data-testid="stForm"] { background:var(--surface1); border:1px solid var(--border); border-radius:16px; padding:24px; }
-        [data-testid="stForm"] [data-testid="stTextInputRootElement"] { background:var(--background); border:1px solid var(--border); border-radius:12px; }
+        body:has(.login-intro) [data-testid="stMainBlockContainer"] { max-width:720px; padding-top:6.5rem; padding-bottom:3rem; }
+        body:has(.login-intro) .evidence-note { margin-top:1.5rem; }
+        .section-intro.login-intro { border-top:0; padding-top:.25rem; margin:0 0 1.75rem; }
+        [data-testid="stForm"] { background:transparent; border:1px solid var(--border); border-radius:8px; padding:28px; }
+        [data-testid="stForm"] [data-testid="stTextInputRootElement"] { background:var(--background); border:1px solid var(--border); border-radius:8px; }
         [data-testid="stForm"] input { background:transparent; color:var(--text1); }
-        [data-testid="stForm"] [data-testid="stWidgetLabel"] p { color:var(--text2); }
-        [data-testid="stFormSubmitButton"] button { width:100%; min-height:44px; border-radius:12px; background:var(--text1); color:var(--background); border:1px solid var(--text1); }
+        [data-testid="stForm"] [data-testid="stWidgetLabel"] p { color:var(--text2); font-family:var(--font-body); }
+        [data-testid="stFormSubmitButton"] { width:100% !important; display:block; }
+        [data-testid="stFormSubmitButton"] button { width:100% !important; min-height:44px; border-radius:999px; background:var(--text1); color:var(--background); border:1px solid var(--text1); font-weight:600; }
         [data-testid="stFormSubmitButton"] button:hover { background:var(--text2); border-color:var(--text2); }
         [data-testid="stFormSubmitButton"] button p { color:inherit; }
-        [data-testid="stSidebar"] h2 { font-family: var(--font-display); font-size: 1.65rem; font-weight: 500; letter-spacing: -.02em; color: var(--text1); }
+        [data-testid="stSidebar"] h2 { font-family: var(--font-display); font-size: 1.85rem; font-weight: 400; letter-spacing: -.03em; color: var(--text1); }
         [data-testid="stSidebar"] label, [data-testid="stSidebar"] p { color: var(--text3); }
         [data-testid="stSidebar"] [data-testid="stButton"] p { color: inherit !important; }
         [data-testid="stSidebar"] [data-testid="stTextInput"] input { background: var(--background); }
         .page-shell { max-width: 1040px; margin: 0 auto; padding: 1.8rem 2.5rem 2.5rem; }
-        .topline { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding:0 0 .85rem; margin-bottom:2.6rem; }
-        .brandmark { font-family:var(--font-display); font-size:1.25rem; color:var(--text1); letter-spacing:-.02em; }
-        .brandmark span { color:var(--accent); }
-        .topmeta { font:500 .68rem/1.2 var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text4); }
+        .brandmark { font-family:var(--font-body); font-size:1.05rem; color:var(--text1); letter-spacing:-.01em; }
+        .brandmark span { color:var(--text1); }
         .hero { max-width: 760px; margin-bottom: 2.1rem; }
-        .eyebrow, .section-kicker { font:500 .68rem/1.35 var(--font-mono); text-transform:uppercase; letter-spacing:.1em; color:var(--accent); margin:0 0 .9rem; }
+        .eyebrow, .section-kicker, p.section-kicker { font:400 .68rem/1.35 var(--font-mono); text-transform:uppercase; letter-spacing:.12em; color:var(--text4) !important; margin:0 0 1rem; }
+        .section-intro [data-testid="stHeaderActionElements"] { display:none; }
+        .section-intro [data-testid="stHeadingWithActionElements"] h2, .section-intro h2 { padding:0 !important; }
         .hero p { max-width: 58ch; font-size:1.05rem; line-height:1.65; color:var(--text3); margin:0; }
-        .context-strip { display:flex; align-items:center; gap:.7rem; margin-top:1.6rem; font:500 .7rem var(--font-mono); color:var(--text4); }
-        .status-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); display:inline-block; }
-        .section-intro { border-top:1px solid var(--border); padding-top:1.7rem; margin:2.2rem 0 1.25rem; }
-        .section-intro h2 { font:500 2.05rem/1.08 var(--font-display); letter-spacing:-.03em; margin:0; color:var(--text1); }
-        .section-intro p { max-width:62ch; color:var(--text3); font-size:.9rem; margin:.55rem 0 0; line-height:1.55; }
+        .context-strip { display:flex; align-items:center; gap:.7rem; margin-top:1.6rem; font:400 .7rem var(--font-mono); color:var(--text4); }
+        .status-dot { width:7px; height:7px; border-radius:50%; background:var(--text1); display:inline-block; }
+        .section-intro { padding-top:2.2rem; margin:1.4rem 0 1.5rem; }
+        .section-intro h2 { font:400 2.6rem/1.08 var(--font-display); letter-spacing:-.035em; margin:0; color:var(--text1); }
+        .section-intro p { max-width:62ch; color:var(--text3); font-size:1.02rem; margin:.7rem 0 0; line-height:1.6; }
         [data-testid="stVerticalBlock"]:has(.section-intro) { gap: .5rem; }
-        [data-testid="stSelectbox"] > div, [data-testid="stDateInput"] > div { border-radius:12px; }
-        [data-testid="stSelectbox"] label, [data-testid="stDateInput"] label, [data-testid="stRadio"] label, [data-testid="stNumberInput"] label { font:500 .7rem var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--text3); }
+        [data-testid="stSelectbox"] > div, [data-testid="stDateInput"] > div { border-radius:8px; }
+        [data-testid="stSelectbox"] label, [data-testid="stDateInput"] label, [data-testid="stRadio"] label, [data-testid="stNumberInput"] label { font:400 .68rem var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text4); }
         [data-testid="stSelectbox"] [data-baseweb="select"] > div, [data-testid="stDateInput"] input, [data-testid="stNumberInput"] input { background:var(--background); border-color:var(--border); }
-        [data-testid="stButton"] button { border-radius:12px; min-height:44px; font-weight:500; transition:all .16s ease; }
+        [data-testid="stButton"] button { border-radius:999px; min-height:44px; font-weight:600; transition:all .16s ease; padding:0 1.25rem; }
         [data-testid="stButton"] button[kind="primary"] { background:var(--text1); border-color:var(--text1); color:var(--background); }
-        [data-testid="stButton"] button[kind="primary"]:hover { background:var(--accent); border-color:var(--accent); color:white; }
+        [data-testid="stButton"] button[kind="primary"]:hover { background:var(--text2); border-color:var(--text2); color:var(--background); }
         [data-testid="stButton"] button[kind="primary"] p { color:inherit !important; }
-        [data-testid="stButton"] button:not([kind="primary"]) { border-color:var(--border); color:var(--text1); background:transparent; }
-        [data-testid="stButton"] button:not([kind="primary"]):hover { background:var(--surface1); border-color:var(--text3); }
-        [data-testid="stAlert"] { border-radius:12px; border:1px solid var(--border); background:var(--surface1); }
+        [data-testid="stButton"] button:not([kind="primary"]) { border-color:var(--text1); color:var(--background); background:var(--text1); }
+        [data-testid="stButton"] button:not([kind="primary"]):hover { background:var(--text2); border-color:var(--text2); color:var(--background); }
+        [data-testid="stButton"] button:not([kind="primary"]) p { color:inherit !important; }
+        [data-testid="stButton"] button:disabled,
+        [data-testid="stButton"] button[disabled] { opacity:.45; }
+        [data-testid="stAlert"] { border-radius:8px; border:1px solid var(--border); background:var(--surface1); }
         [data-testid="stMetricValue"] { font-family:var(--font-mono); }
-        .evidence-note { margin-top:3rem; padding:1.1rem 1.25rem; border:1px solid #E8B39D; border-radius:16px; background:var(--accent-subtle); color:var(--text2); font-size:.84rem; line-height:1.55; }
-        .evidence-note strong { font:500 .68rem var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:#874634; display:block; margin-bottom:.35rem; }
-        @media (max-width: 760px) { .page-shell { padding:1.3rem 1rem 3rem; } .topline { margin-bottom:2rem; } .topmeta { display:none; } }
+        .evidence-note { margin-top:3rem; padding:1.25rem 1.4rem; border:1px solid var(--border); border-radius:8px; background:var(--surface1); color:var(--text2); font:400 .9rem/1.6 var(--font-display); }
+        .evidence-note strong { font:400 .68rem var(--font-mono); letter-spacing:.12em; text-transform:uppercase; color:var(--text4); display:block; margin-bottom:.4rem; }
+        @media (max-width: 760px) { .page-shell { padding:1.3rem 1rem 3rem; } }
         </style>
-        <div class="page-shell">
-          <div class="topline"><div class="brandmark"><span>●</span> 深大场馆预约</div><div class="topmeta">SHENZHEN UNIVERSITY · RESERVATIONS</div></div>
-        </div>
+        <div id="app-topline" class="app-topline"><div class="brandmark"><span>●</span>深大场馆预约</div><div class="topmeta">SHENZHEN UNIVERSITY · RESERVATIONS</div></div>
         """,
         unsafe_allow_html=True,
     )
@@ -326,7 +425,7 @@ def main() -> None:
             st.caption("预约进行中，请先停止任务再退出。" if job_running else "登录成功，可以开始预约。")
             if st.button("退出当前会话", disabled=job_running):
                 st.session_state["connected"] = False
-                for key in ("venues", "times", "time_map", "time_query_key", "booking_job_id", "cookie_input"):
+                for key in ("venues", "times", "time_map", "time_query_key", "times_error", "booking_job_id", "cookie_input"):
                     st.session_state.pop(key, None)
                 apis.cookies = {}
                 apis._session.cookies.clear()
@@ -346,7 +445,7 @@ def main() -> None:
                 key="cookie_input",
                 help="从浏览器开发者工具复制 Cookie 请求头内容；仅在当前会话使用",
             )
-            if st.form_submit_button("登录并进入预约", type="primary"):
+            if st.form_submit_button("登录并进入预约", type="primary", use_container_width=True):
                 if not stuid.strip() or not stuname.strip() or not cookie_dict(raw_cookie):
                     st.error("请填写学号、姓名和 Cookie")
                 else:
@@ -393,69 +492,72 @@ def main() -> None:
         venues = [v for v in all_venues if v.get("campus") == campus]
         if not venues:
             st.warning("该校区暂无可预约场馆")
-            return
-        labels = [f"{v['name']}｜{v['kind']}｜{v['activity_name'] or v['activity']}" for v in venues]
-        with control_cols[1]:
-            selected = st.selectbox("选择场馆", range(len(venues)), format_func=lambda i: labels[i])
-        venue = venues[selected]
-        target_date = st.date_input("预约日期", value=date.today() + timedelta(days=1), min_value=date.today())
-        date_str = target_date.isoformat()
-        query_key = (campus, venue["venue"], venue["activity"], venue["type"], date_str)
-        if st.session_state.get("time_query_key") != query_key:
-            st.session_state["time_query_key"] = query_key
-            st.session_state.pop("times", None)
-            st.session_state.pop("time_map", None)
-        if st.button("查询预约时段"):
-            op_log(f"查询时段：校区{campus}，场馆{venue['name']}，日期{date_str}")
-            st.session_state["times"] = rows_from(
-                apis.getTimeList(venue["campus"], date_str, venue["type"], venue["activity"])
-            )
-        times = st.session_state.get("times", [])
-        time_map: dict[str, str] = {}
-        for row in times:
-            if isinstance(row, dict):
-                code = str(row.get("CODE", row.get("NAME", "")))
-                if re.fullmatch(r"\d{2}:\d{2}-\d{2}:\d{2}", code):
-                    if row.get("disabled", False):
-                        reason = str(row.get("text") or row.get("STATE_EXPLAIN") or "不可预约")
-                    else:
-                        reason = "可预约"
-                    time_map[f"{code}（{reason}）"] = code
-        if not times:
-            st.info("请选择校区、场馆和日期后，点击“查询预约时段”。")
-        elif not time_map:
-            st.warning("该日期暂无可用时段")
         else:
-            time_label = st.selectbox("预约时段", list(time_map))
-            period = time_map[time_label]
-            mode = st.radio("运行模式", ["执行一次", "持续轮询"], horizontal=True)
-            infinite_poll = False
-            if mode == "持续轮询":
-                infinite_poll = st.checkbox(
-                    "无限轮询，直到预约成功",
-                    value=False,
-                    help="持续运行直到成功或接口返回终止性失败；点击页面顶部的停止预约可结束轮询",
-                )
-            delay = st.number_input("轮询间隔（毫秒）", min_value=100, max_value=60000, value=1000, step=100,
-                                    disabled=(mode == "执行一次"))
-            rounds = st.number_input("最大轮询轮次", min_value=1, max_value=10000, value=60, step=1,
-                                     disabled=(mode == "执行一次" or infinite_poll))
-            active_job = st.session_state.get("booking_job_id")
-            start_clicked = False
-            if not (active_job and JOBS.get(active_job, {}).get("status") == "running"):
-                start_clicked = st.button("开始预约", type="primary")
-            if start_clicked:
-                course = {"CGDM": venue["venue"], "XMDM": venue["activity"], "XQWID": venue["campus"],
-                          "KYYSJD": period, "YYRQ": date_str, "YYLX": venue["type"]}
-                op_log(f"开始预约：{venue['name']} {date_str} {period}")
-                job_id = uuid.uuid4().hex
-                job = {"status": "running", "attempt": 0, "detail": "任务已启动…", "success": False,
-                       "logs": [], "stop_event": threading.Event()}
-                with JOBS_LOCK: JOBS[job_id] = job
-                st.session_state["booking_job_id"] = job_id
-                threading.Thread(target=booking_worker, args=(job_id, course, infinite_poll,
-                                  int(rounds), int(delay)), daemon=True).start()
-                st.rerun()
+            labels = [f"{v['name']}｜{v['kind']}｜{v['activity_name'] or v['activity']}" for v in venues]
+            with control_cols[1]:
+                selected = st.selectbox("选择场馆", range(len(venues)), format_func=lambda i: labels[i])
+            venue = venues[selected]
+            target_date = st.date_input("预约日期", value=date.today() + timedelta(days=1), min_value=date.today())
+            date_str = target_date.isoformat()
+            query_key = (campus, venue["venue"], venue["activity"], venue["type"], date_str)
+            if st.session_state.get("time_query_key") != query_key:
+                st.session_state["time_query_key"] = query_key
+                st.session_state.pop("times", None)
+                st.session_state.pop("times_error", None)
+                st.session_state.pop("time_map", None)
+            if st.button("查询预约时段", type="primary"):
+                op_log(f"查询时段：校区{campus}，场馆{venue['name']}，日期{date_str}")
+                with st.spinner("正在查询可预约时段…"):
+                    rows, error = parse_time_list(
+                        apis.getTimeList(venue["campus"], date_str, venue["type"], venue["activity"])
+                    )
+                st.session_state["times"] = rows
+                st.session_state["times_error"] = error
+                if error:
+                    op_log(error, "ERROR")
+            times = st.session_state.get("times")
+            times_error = st.session_state.get("times_error")
+            if times_error:
+                st.error(times_error)
+            elif times is None:
+                st.info("请选择校区、场馆和日期后，点击“查询预约时段”。")
+            else:
+                time_map, unavailable = slot_options(times)
+                if unavailable:
+                    st.caption("不可预约：" + "、".join(unavailable))
+                if not time_map:
+                    st.warning("该日期暂无可预约时段")
+                else:
+                    time_label = st.selectbox("预约时段", list(time_map))
+                    period = time_map[time_label]
+                    mode = st.radio("运行模式", ["执行一次", "持续轮询"], horizontal=True)
+                    infinite_poll = False
+                    if mode == "持续轮询":
+                        infinite_poll = st.checkbox(
+                            "无限轮询，直到预约成功",
+                            value=False,
+                            help="持续运行直到成功或接口返回终止性失败；点击页面顶部的停止预约可结束轮询",
+                        )
+                    delay = st.number_input("轮询间隔（毫秒）", min_value=100, max_value=60000, value=1000, step=100,
+                                            disabled=(mode == "执行一次"))
+                    rounds = st.number_input("最大轮询轮次", min_value=1, max_value=10000, value=60, step=1,
+                                             disabled=(mode == "执行一次" or infinite_poll))
+                    active_job = st.session_state.get("booking_job_id")
+                    start_clicked = False
+                    if not (active_job and JOBS.get(active_job, {}).get("status") == "running"):
+                        start_clicked = st.button("开始预约", type="primary")
+                    if start_clicked:
+                        course = {"CGDM": venue["venue"], "XMDM": venue["activity"], "XQWID": venue["campus"],
+                                  "KYYSJD": period, "YYRQ": date_str, "YYLX": venue["type"]}
+                        op_log(f"开始预约：{venue['name']} {date_str} {period}")
+                        job_id = uuid.uuid4().hex
+                        job = {"status": "running", "attempt": 0, "detail": "任务已启动…", "success": False,
+                               "logs": [], "stop_event": threading.Event()}
+                        with JOBS_LOCK: JOBS[job_id] = job
+                        st.session_state["booking_job_id"] = job_id
+                        threading.Thread(target=booking_worker, args=(job_id, course, infinite_poll,
+                                          int(rounds), int(delay)), daemon=True).start()
+                        st.rerun()
 
     st.markdown('<div class="evidence-note"><strong>Privacy note</strong>Cookie 仅用于本次会话的接口请求，不会写入配置文件；姓名与学号仅保存在本机的便捷配置中。</div>', unsafe_allow_html=True)
 

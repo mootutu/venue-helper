@@ -1,0 +1,55 @@
+name: Build desktop apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/streamlit-webui
+      - main
+    paths:
+      - app.py
+      - apis.py
+      - settings.py
+      - launcher.py
+      - venue-helper.spec
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/build-desktop.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows
+          - os: macos-14
+            artifact: macos-arm64
+          - os: macos-13
+            artifact: macos-intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: |
+          uv sync --group dev
+          uv run pyinstaller --noconfirm --clean venue-helper.spec
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-upload
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp dist/*.exe dist-upload/
+          else
+            ditto -c -k --keepParent dist/*.app dist-upload/venue-helper-macos.app.zip
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: venue-helper-${{ matrix.artifact }}
+          path: dist-upload/*
+          if-no-files-found: error

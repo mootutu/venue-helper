@@ -4,10 +4,28 @@
 
 ## 启动
 
+开发环境：
+
 ```powershell
 uv sync
 uv run streamlit run app.py
 ```
+
+也可以直接打开打包好的桌面程序，不需要再运行 `uv run`：
+
+- Windows：双击 `dist/深大场馆预约.exe`
+- macOS：打开 `深大场馆预约.app`
+
+程序会自动打开浏览器。Windows 请保持黑色控制台窗口打开；macOS 首次打开如果提示未验证开发者，可在访达中右键选择“打开”。日志和本机姓名/学号缓存会写在程序旁边。
+
+在本机重新打包：
+
+```powershell
+uv sync --group dev
+uv run pyinstaller --noconfirm venue-helper.spec
+```
+
+macOS 程序必须在 Mac 上打包。推送到 GitHub 后，`Build desktop apps` 工作流会分别产出 Windows、Apple Silicon 和 Intel 三份产物。
 
 启动后先在登录页面填写姓名、学号和 ehall Cookie（姓名与学号首次填写后会保存在本机的 `.venue_profile.json`，该文件已被 Git 忽略），点击“登录并进入预约”。验证成功后才会显示预约工作区，按“校区 → 场馆 → 日期 → 查询预约时段”的顺序操作。持续轮询支持限次模式，也支持无限轮询直到预约成功；页面提供“停止预约”按钮，收到停止请求后会在当前网络请求结束后停止轮询。Cookie 不会写入本地。
 
@@ -22,4 +40,6 @@ uv run streamlit run app.py
 - `app.py`：Streamlit WebUI 和预约流程
 - `apis.py`：接口访问、超时、响应校验和错误日志
 - `settings.py`：非敏感默认配置及环境变量读取
+- `launcher.py`：打包后的启动入口
+- `venue-helper.spec`：PyInstaller 打包配置
 - `OPERATION_LOG.md`：操作进度和运行日志
