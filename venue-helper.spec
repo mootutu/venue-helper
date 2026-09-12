@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
+APP_NAME = "深大场馆预约"
 datas = collect_data_files("streamlit") + copy_metadata("streamlit") + copy_metadata("altair")
 datas += [
     ("app.py", "."),
@@ -37,7 +39,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="深大场馆预约",
+    name=APP_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -49,3 +51,16 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
+if sys.platform == "darwin":
+    app = BUNDLE(
+        exe,
+        name=f"{APP_NAME}.app",
+        icon=None,
+        bundle_identifier="com.szu.venuehelper",
+        info_plist={
+            "CFBundleName": APP_NAME,
+            "CFBundleDisplayName": APP_NAME,
+            "NSHighResolutionCapable": True,
+        },
+    )

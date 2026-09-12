@@ -22,9 +22,15 @@ import apis
 
 
 def app_home() -> Path:
-    """Writable directory next to the exe, or the source tree during development."""
+    """Writable directory next to the packaged app, or the source tree."""
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        executable = Path(sys.executable).resolve()
+        # macOS .app: Contents/MacOS/<binary> -> keep files next to the .app
+        if sys.platform == "darwin":
+            for parent in executable.parents:
+                if parent.suffix == ".app":
+                    return parent.parent
+        return executable.parent
     return Path(__file__).resolve().parent
 
 
