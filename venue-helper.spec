@@ -1,0 +1,51 @@
+# -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
+
+datas = collect_data_files("streamlit") + copy_metadata("streamlit") + copy_metadata("altair")
+datas += [
+    ("app.py", "."),
+    ("apis.py", "."),
+    ("settings.py", "."),
+]
+hiddenimports = collect_submodules("streamlit") + [
+    "streamlit.web.cli",
+    "streamlit.runtime.scriptrunner",
+    "streamlit.runtime.scriptrunner.magic_funcs",
+    "altair",
+    "pyarrow",
+    "pandas",
+    "numpy",
+    "requests",
+]
+
+a = Analysis(
+    ["launcher.py"],
+    pathex=[],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=["matplotlib", "openai", "openpyxl", "tqdm"],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name="深大场馆预约",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)

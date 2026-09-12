@@ -16,3 +16,7 @@ __pycache__/
 .DS_Store
 .DS_Store?
 ._*
+
+# Packaging artifacts
+build/
+dist/

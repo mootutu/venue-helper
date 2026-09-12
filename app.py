@@ -5,6 +5,8 @@ Cookies are entered at runtime and are never persisted by this module.
 """
 from __future__ import annotations
 
+import os
+import sys
 import re
 import time
 import json
@@ -19,8 +21,16 @@ import streamlit as st
 import apis
 
 
-LOG_PATH = Path(__file__).with_name("OPERATION_LOG.md")
-PROFILE_PATH = Path(__file__).with_name(".venue_profile.json")
+def app_home() -> Path:
+    """Writable directory next to the exe, or the source tree during development."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+HOME = app_home()
+LOG_PATH = HOME / "OPERATION_LOG.md"
+PROFILE_PATH = HOME / ".venue_profile.json"
 @st.cache_resource
 def job_registry():
     """Retain background jobs across Streamlit script reruns."""
