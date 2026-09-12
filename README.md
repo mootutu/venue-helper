@@ -11,7 +11,7 @@ uv sync
 uv run streamlit run app.py
 ```
 
-也可以直接双击打包好的 Windows 程序 `dist/深大场馆预约.exe`。它会自动打开浏览器，不需要再运行 `uv run`。日志和本机姓名/学号缓存会写在 exe 旁边。
+也可以直接双击打包好的 Windows 程序 `dist/深大场馆预约.exe`。它会自动打开浏览器，不需要再运行 `uv run`。黑色控制台窗口请保持打开；日志和本机姓名/学号缓存会写在 exe 旁边。
 
 重新打包：
 
