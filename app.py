@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 import apis
 
@@ -261,29 +260,29 @@ def main() -> None:
         page_title="深大场馆预约",
         page_icon="🏟️",
         layout="wide",
-        initial_sidebar_state="expanded" if st.session_state.get("connected", False) else "collapsed",
+        initial_sidebar_state="expanded",
     )
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.cn/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
+        @import url('https://fonts.googleapis.cn/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap');
 
         :root {
-          --background: #FAF9F5; --surface1: #F5F4ED; --surface2: #F0EEE6;
-          --surface3: #E8E6DC; --border: #DEDCD1; --text1: #1A1918;
+          --background: #FAF9F5; --surface1: #F0EEE6; --surface2: #E8E6DC;
+          --surface3: #E3DACC; --border: #D1CFC5; --text1: #141413;
           --text2: #3D3D3A; --text3: #5E5D59; --text4: #87867F;
-          --accent: #D97757; --accent-subtle: #F8E7DF; --success: #567D62;
+          --accent: #D97757; --accent-subtle: #F0EEE6; --success: #788C5D;
           --font-display: 'Newsreader', Georgia, serif;
           --font-body: 'Instrument Sans', system-ui, sans-serif;
           --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
         }
         @media (prefers-color-scheme: dark) {
-          :root { --background:#141413; --surface1:#1A1918; --surface2:#3D3D3A; --surface3:#5E5D59; --border:#3D3D3A; --text1:#FAF9F5; --text2:#E8E6DC; --text3:#B0AEA5; --text4:#87867F; --accent:#DE9274; --accent-subtle:#1A1918; --success:#6D9779; }
+          :root { --background:#141413; --surface1:#1A1918; --surface2:#3D3D3A; --surface3:#5E5D59; --border:#3D3D3A; --text1:#FAF9F5; --text2:#E8E6DC; --text3:#B0AEA5; --text4:#87867F; --accent:#DE9274; --accent-subtle:#1A1918; --success:#788C5D; }
           .stApp, [data-testid="stAppViewContainer"] { background:var(--background); color:var(--text1); }
-          [data-testid="stHeader"] { background:rgba(20,20,19,.9); }
+          [data-testid="stHeader"] { background:rgba(20,20,19,.92); }
           [data-testid="stSidebar"] { background:var(--surface1); }
-          .evidence-note { border-color:#874634; background:#24120E; }
-          .evidence-note strong { color:#DE9274; }
+          .evidence-note { border-color:var(--border); background:var(--surface1); }
+          .evidence-note strong { color:var(--text4); }
         }
         html, body, [class*="css"] { font-family: var(--font-body); }
         .stApp { background: var(--background); color: var(--text1); }
@@ -291,114 +290,109 @@ def main() -> None:
         [data-testid="stHeader"] {
           background: rgba(250,249,245,.96);
           border-bottom: 1px solid var(--border);
-          height: 60px;
+          height: 68px;
         }
-        [data-testid="stToolbar"] { opacity: 1; }
-        [data-testid="stHeader"] .stAppToolbar { justify-content: flex-end; }
-        [data-testid="stDecoration"] { display: none; }
+        [data-testid="stDecoration"],
+        [data-testid="stAppDeployButton"],
+        [data-testid="stMainMenu"],
+        [data-testid="stToolbarActions"] { display: none !important; }
+        [data-testid="stExpandSidebarButton"] { display: flex !important; }
         .app-topline {
           position: fixed;
           top: 0;
-          left: var(--app-topline-left, 0px);
-          right: 8.5rem;
-          height: 60px;
+          left: 3.25rem;
+          right: 0;
+          height: 68px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 1.5rem;
+          padding: 0 2rem 0 .55rem;
           pointer-events: none;
-          z-index: 1000000;
+          z-index: 999990;
+        }
+        body:has(.login-intro) .app-topline {
+          left: 0;
+          padding-left: 2rem;
+        }
+        [data-testid="stAppViewContainer"]:has([data-testid="stSidebar"][aria-expanded="true"]) .app-topline {
+          left: 21rem;
+          padding-left: 1.5rem;
         }
         .app-topline .brandmark {
-          font-family: var(--font-display);
-          font-size: 1.25rem;
-          font-weight: 500;
-          letter-spacing: -.02em;
+          font-family: var(--font-body);
+          font-size: 1.05rem;
+          font-weight: 600;
+          letter-spacing: -.01em;
           color: var(--text1);
+          white-space: nowrap;
         }
-        .app-topline .brandmark span { color: var(--accent); margin-right: .45rem; }
+        .app-topline .brandmark span { color: var(--text1); margin-right: .55rem; font-size: .7rem; }
         .app-topline .topmeta {
-          font: 500 .68rem/1.2 var(--font-mono);
-          letter-spacing: .08em;
-          text-transform: uppercase;
-          color: var(--text4);
+          font: 400 .72rem/1.2 var(--font-display);
+          letter-spacing: .02em;
+          text-transform: none;
+          color: var(--text3);
+          white-space: nowrap;
+          margin-left: auto;
         }
         @media (max-width: 760px) {
-          .app-topline { right: 5.5rem; padding: 0 1rem; }
+          .app-topline { padding-right: 1rem; }
+          body:has(.login-intro) .app-topline { padding-left: 1rem; }
           .app-topline .topmeta { display: none; }
         }
         [data-testid="stSidebar"] { background: var(--surface1); border-right: 1px solid var(--border); }
         [data-testid="stSidebar"] > div:first-child { padding: 2rem 1.35rem; }
         body:has(.login-intro) [data-testid="stSidebar"] { display: none; }
-        body:has(.login-intro) [data-testid="stMainBlockContainer"] { max-width:720px; padding-top:5.5rem; padding-bottom:2rem; }
-        body:has(.login-intro) .evidence-note { margin-top:1rem; }
-        .section-intro.login-intro { border-top:0; padding-top:.5rem; margin:0 0 1.25rem; }
-        [data-testid="stForm"] { background:var(--surface1); border:1px solid var(--border); border-radius:16px; padding:24px; }
-        [data-testid="stForm"] [data-testid="stTextInputRootElement"] { background:var(--background); border:1px solid var(--border); border-radius:12px; }
+        body:has(.login-intro) [data-testid="stMainBlockContainer"] { max-width:720px; padding-top:6.5rem; padding-bottom:3rem; }
+        body:has(.login-intro) .evidence-note { margin-top:1.5rem; }
+        .section-intro.login-intro { border-top:0; padding-top:.25rem; margin:0 0 1.75rem; }
+        [data-testid="stForm"] { background:transparent; border:1px solid var(--border); border-radius:8px; padding:28px; }
+        [data-testid="stForm"] [data-testid="stTextInputRootElement"] { background:var(--background); border:1px solid var(--border); border-radius:8px; }
         [data-testid="stForm"] input { background:transparent; color:var(--text1); }
-        [data-testid="stForm"] [data-testid="stWidgetLabel"] p { color:var(--text2); }
+        [data-testid="stForm"] [data-testid="stWidgetLabel"] p { color:var(--text2); font-family:var(--font-body); }
         [data-testid="stFormSubmitButton"] { width:100% !important; display:block; }
-        [data-testid="stFormSubmitButton"] button { width:100% !important; min-height:44px; border-radius:12px; background:var(--text1); color:var(--background); border:1px solid var(--text1); }
+        [data-testid="stFormSubmitButton"] button { width:100% !important; min-height:44px; border-radius:999px; background:var(--text1); color:var(--background); border:1px solid var(--text1); font-weight:600; }
         [data-testid="stFormSubmitButton"] button:hover { background:var(--text2); border-color:var(--text2); }
         [data-testid="stFormSubmitButton"] button p { color:inherit; }
-        [data-testid="stSidebar"] h2 { font-family: var(--font-display); font-size: 1.65rem; font-weight: 500; letter-spacing: -.02em; color: var(--text1); }
+        [data-testid="stSidebar"] h2 { font-family: var(--font-display); font-size: 1.85rem; font-weight: 400; letter-spacing: -.03em; color: var(--text1); }
         [data-testid="stSidebar"] label, [data-testid="stSidebar"] p { color: var(--text3); }
         [data-testid="stSidebar"] [data-testid="stButton"] p { color: inherit !important; }
         [data-testid="stSidebar"] [data-testid="stTextInput"] input { background: var(--background); }
         .page-shell { max-width: 1040px; margin: 0 auto; padding: 1.8rem 2.5rem 2.5rem; }
-        .brandmark { font-family:var(--font-display); font-size:1.25rem; color:var(--text1); letter-spacing:-.02em; }
-        .brandmark span { color:var(--accent); }
+        .brandmark { font-family:var(--font-body); font-size:1.05rem; color:var(--text1); letter-spacing:-.01em; }
+        .brandmark span { color:var(--text1); }
         .hero { max-width: 760px; margin-bottom: 2.1rem; }
-        .eyebrow, .section-kicker, p.section-kicker { font:500 .68rem/1.35 var(--font-mono); text-transform:uppercase; letter-spacing:.1em; color:var(--accent) !important; margin:0 0 .9rem; }
+        .eyebrow, .section-kicker, p.section-kicker { font:400 .68rem/1.35 var(--font-mono); text-transform:uppercase; letter-spacing:.12em; color:var(--text4) !important; margin:0 0 1rem; }
         .section-intro [data-testid="stHeaderActionElements"] { display:none; }
         .section-intro [data-testid="stHeadingWithActionElements"] h2, .section-intro h2 { padding:0 !important; }
         .hero p { max-width: 58ch; font-size:1.05rem; line-height:1.65; color:var(--text3); margin:0; }
-        .context-strip { display:flex; align-items:center; gap:.7rem; margin-top:1.6rem; font:500 .7rem var(--font-mono); color:var(--text4); }
-        .status-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); display:inline-block; }
-        .section-intro { border-top:1px solid var(--border); padding-top:1.7rem; margin:2.2rem 0 1.25rem; }
-        .section-intro h2 { font:500 2.05rem/1.08 var(--font-display); letter-spacing:-.03em; margin:0; color:var(--text1); }
-        .section-intro p { max-width:62ch; color:var(--text3); font-size:.9rem; margin:.55rem 0 0; line-height:1.55; }
+        .context-strip { display:flex; align-items:center; gap:.7rem; margin-top:1.6rem; font:400 .7rem var(--font-mono); color:var(--text4); }
+        .status-dot { width:7px; height:7px; border-radius:50%; background:var(--text1); display:inline-block; }
+        .section-intro { padding-top:2.2rem; margin:1.4rem 0 1.5rem; }
+        .section-intro h2 { font:400 2.6rem/1.08 var(--font-display); letter-spacing:-.035em; margin:0; color:var(--text1); }
+        .section-intro p { max-width:62ch; color:var(--text3); font-size:1.02rem; margin:.7rem 0 0; line-height:1.6; }
         [data-testid="stVerticalBlock"]:has(.section-intro) { gap: .5rem; }
-        [data-testid="stSelectbox"] > div, [data-testid="stDateInput"] > div { border-radius:12px; }
-        [data-testid="stSelectbox"] label, [data-testid="stDateInput"] label, [data-testid="stRadio"] label, [data-testid="stNumberInput"] label { font:500 .7rem var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--text3); }
+        [data-testid="stSelectbox"] > div, [data-testid="stDateInput"] > div { border-radius:8px; }
+        [data-testid="stSelectbox"] label, [data-testid="stDateInput"] label, [data-testid="stRadio"] label, [data-testid="stNumberInput"] label { font:400 .68rem var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text4); }
         [data-testid="stSelectbox"] [data-baseweb="select"] > div, [data-testid="stDateInput"] input, [data-testid="stNumberInput"] input { background:var(--background); border-color:var(--border); }
-        [data-testid="stButton"] button { border-radius:12px; min-height:44px; font-weight:500; transition:all .16s ease; }
+        [data-testid="stButton"] button { border-radius:999px; min-height:44px; font-weight:600; transition:all .16s ease; padding:0 1.25rem; }
         [data-testid="stButton"] button[kind="primary"] { background:var(--text1); border-color:var(--text1); color:var(--background); }
-        [data-testid="stButton"] button[kind="primary"]:hover { background:var(--accent); border-color:var(--accent); color:white; }
+        [data-testid="stButton"] button[kind="primary"]:hover { background:var(--text2); border-color:var(--text2); color:var(--background); }
         [data-testid="stButton"] button[kind="primary"] p { color:inherit !important; }
-        [data-testid="stButton"] button:not([kind="primary"]) { border-color:var(--border); color:var(--text1); background:transparent; }
-        [data-testid="stButton"] button:not([kind="primary"]):hover { background:var(--surface1); border-color:var(--text3); }
-        [data-testid="stAlert"] { border-radius:12px; border:1px solid var(--border); background:var(--surface1); }
+        [data-testid="stButton"] button:not([kind="primary"]) { border-color:var(--text1); color:var(--background); background:var(--text1); }
+        [data-testid="stButton"] button:not([kind="primary"]):hover { background:var(--text2); border-color:var(--text2); color:var(--background); }
+        [data-testid="stButton"] button:not([kind="primary"]) p { color:inherit !important; }
+        [data-testid="stButton"] button:disabled,
+        [data-testid="stButton"] button[disabled] { opacity:.45; }
+        [data-testid="stAlert"] { border-radius:8px; border:1px solid var(--border); background:var(--surface1); }
         [data-testid="stMetricValue"] { font-family:var(--font-mono); }
-        .evidence-note { margin-top:3rem; padding:1.1rem 1.25rem; border:1px solid #E8B39D; border-radius:16px; background:var(--accent-subtle); color:var(--text2); font:400 .84rem/1.55 var(--font-body); }
-        .evidence-note strong { font:500 .68rem var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:#874634; display:block; margin-bottom:.35rem; }
+        .evidence-note { margin-top:3rem; padding:1.25rem 1.4rem; border:1px solid var(--border); border-radius:8px; background:var(--surface1); color:var(--text2); font:400 .9rem/1.6 var(--font-display); }
+        .evidence-note strong { font:400 .68rem var(--font-mono); letter-spacing:.12em; text-transform:uppercase; color:var(--text4); display:block; margin-bottom:.4rem; }
         @media (max-width: 760px) { .page-shell { padding:1.3rem 1rem 3rem; } }
         </style>
         <div id="app-topline" class="app-topline"><div class="brandmark"><span>●</span>深大场馆预约</div><div class="topmeta">SHENZHEN UNIVERSITY · RESERVATIONS</div></div>
         """,
         unsafe_allow_html=True,
-    )
-    components.html(
-        """
-        <script>
-        (function() {
-          const doc = window.parent.document;
-          const root = doc.documentElement;
-          const place = () => {
-            const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-            const box = sidebar && sidebar.getBoundingClientRect();
-            const visible = box && box.width > 40 && box.x >= -1;
-            root.style.setProperty('--app-topline-left', visible ? Math.round(box.width) + 'px' : '0px');
-          };
-          place();
-          new MutationObserver(place).observe(doc.body, {attributes: true, subtree: true, attributeFilter: ['style', 'class']});
-          window.parent.addEventListener('resize', place);
-          setTimeout(place, 50);
-          setTimeout(place, 250);
-        })();
-        </script>
-        """,
-        height=0,
     )
 
     active_job = st.session_state.get("booking_job_id")
@@ -495,7 +489,7 @@ def main() -> None:
                 st.session_state.pop("times", None)
                 st.session_state.pop("times_error", None)
                 st.session_state.pop("time_map", None)
-            if st.button("查询预约时段"):
+            if st.button("查询预约时段", type="primary"):
                 op_log(f"查询时段：校区{campus}，场馆{venue['name']}，日期{date_str}")
                 with st.spinner("正在查询可预约时段…"):
                     rows, error = parse_time_list(
