@@ -25,7 +25,7 @@ uv sync --group dev
 uv run pyinstaller --noconfirm venue-helper.spec
 ```
 
-macOS 程序必须在 Mac 上打包。推送到 GitHub 后，`Build desktop apps` 工作流会分别产出 Windows、Apple Silicon 和 Intel 三份产物。
+macOS 程序必须在 Mac 上打包。推送到 GitHub 后，`Build desktop apps` 工作流会分别产出 Windows 和 Apple Silicon 两份产物。
 
 启动后先在登录页面填写姓名、学号和 ehall Cookie（姓名与学号首次填写后会保存在本机的 `.venue_profile.json`，该文件已被 Git 忽略），点击“登录并进入预约”。验证成功后才会显示预约工作区，按“校区 → 场馆 → 日期 → 查询预约时段”的顺序操作。持续轮询支持限次模式，也支持无限轮询直到预约成功；页面提供“停止预约”按钮，收到停止请求后会在当前网络请求结束后停止轮询。Cookie 不会写入本地。
 
